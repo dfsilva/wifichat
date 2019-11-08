@@ -13,8 +13,4 @@ public class User {
     public String toJson() {
         return new Gson().toJson(this);
     }
-
-    public static User fromJson(String json) {
-        return new Gson().fromJson(json, User.class);
-    }
 }

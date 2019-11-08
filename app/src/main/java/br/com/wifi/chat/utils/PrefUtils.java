@@ -18,11 +18,9 @@ public class PrefUtils {
     public static <T> T loadJson(Context context, String key, Class<T> tClass) {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
         String pref = preferences.getString(key, "");
-
         if (pref == null || pref.isEmpty()) {
             return null;
         }
-
         return new Gson().fromJson(pref, tClass);
     }
 

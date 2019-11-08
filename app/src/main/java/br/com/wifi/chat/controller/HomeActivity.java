@@ -1,8 +1,12 @@
 package br.com.wifi.chat.controller;
 
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.view.Menu;
-import android.view.View;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -19,6 +23,8 @@ import com.google.android.material.snackbar.Snackbar;
 import br.com.wifi.chat.R;
 import br.com.wifi.chat.module.AppModule;
 import br.com.wifi.chat.module.UserModule;
+import br.com.wifi.chat.service.DownloadService;
+import br.com.wifi.chat.service.SocketService;
 import br.com.wifi.chat.utils.NsdHelper;
 import io.reactivex.disposables.Disposable;
 
@@ -27,8 +33,24 @@ public class HomeActivity extends AppCompatActivity {
     private NsdHelper nsdHelper;
     private UserModule userModule;
     private Disposable userDisposable;
+    private SocketService socketService;
+    private boolean shouldUnbind = false;
 
     private AppBarConfiguration mAppBarConfiguration;
+
+    private ServiceConnection connection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName className,
+                                       IBinder service) {
+            SocketService.LocalBinder binder = (SocketService.LocalBinder) service;
+            socketService = binder.getService();
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName arg0) {
+
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -37,13 +59,8 @@ public class HomeActivity extends AppCompatActivity {
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         FloatingActionButton fab = findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
-            }
-        });
+        fab.setOnClickListener(view -> Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
+                .setAction("Action", null).show());
         DrawerLayout drawer = findViewById(R.id.drawer_layout);
         NavigationView navigationView = findViewById(R.id.nav_view);
         mAppBarConfiguration = new AppBarConfiguration.Builder(
@@ -57,13 +74,37 @@ public class HomeActivity extends AppCompatActivity {
 
         userModule = AppModule.getInstance().userModule;
 
-        userModule.loggedUser.subscribe(loggedUser -> {
+        Intent serviceIntent = new Intent(this, SocketService.class);
+        startService(serviceIntent);
+
+        Intent intent = new Intent(this, DownloadService.class);
+        startService(intent);
+
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        userDisposable = userModule.loggedUser.subscribe(loggedUser -> {
             nsdHelper = new NsdHelper(this);
             nsdHelper.mServiceName = loggedUser.get().name;
             nsdHelper.initializeNsd();
         });
 
+        Intent bindIntent = new Intent(getApplicationContext(), SocketService.class);
+        if (getApplicationContext().bindService(bindIntent, connection, Context.BIND_AUTO_CREATE)) {
+            this.shouldUnbind = true;
+        }
+    }
 
+    @Override
+    protected void onStop() {
+        super.onStop();
+        userDisposable.dispose();
+        if (shouldUnbind) {
+            unbindService(connection);
+            this.shouldUnbind = false;
+        }
     }
 
     @Override
@@ -78,4 +119,6 @@ public class HomeActivity extends AppCompatActivity {
         return NavigationUI.navigateUp(navController, mAppBarConfiguration)
                 || super.onSupportNavigateUp();
     }
+
+
 }
